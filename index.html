@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDN Image Manager - jsDelivr</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f7f6;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .breadcrumb {
+            margin-bottom: 20px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+            .breadcrumb a {
+                color: #3498db;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+        .item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+            .item:hover {
+                background: #f9f9f9;
+            }
+
+        .item-icon {
+            font-size: 20px;
+            margin-right: 15px;
+        }
+
+        .item-info {
+            flex-grow: 1;
+        }
+
+        .item-name {
+            font-weight: bold;
+            cursor: pointer;
+            color: #2980b9;
+        }
+
+            .item-name:hover {
+                text-decoration: underline;
+            }
+
+        .cdn-link {
+            width: 100%;
+            margin-top: 5px;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 0.85em;
+            background: #eee;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .btn-copy {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+
+            .btn-copy:hover {
+                background: #219150;
+            }
+
+        .folder {
+            color: #f39c12;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>GitHub Image CDN Manager</h1>
+        <div class="breadcrumb" id="breadcrumb">Đang ở: <a onclick="loadFolder('')">Root</a></div>
+        <div id="file-list">Đang tải dữ liệu từ GitHub...</div>
+    </div>
+
+    <script>
+        const user = "TeamCodeDaoVN";
+        const repo = "DauPhaThuongKhung";
+
+        async function loadFolder(path) {
+            const listElement = document.getElementById('file-list');
+            const breadcrumb = document.getElementById('breadcrumb');
+            listElement.innerHTML = "Đang tải...";
+            breadcrumb.innerHTML = `Đang ở: <a onclick="loadFolder('')">Root</a> / ${path}`;
+
+            const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
+
+            try {
+                const res = await fetch(apiUrl);
+                const data = await res.json();
+
+                listElement.innerHTML = "";
+                let allLinks = []; // Mảng chứa tất cả link trong folder hiện tại
+
+                data.sort((a, b) => (b.type === 'dir') - (a.type === 'dir'));
+
+                // Tạo ô tổng hợp ở trên cùng
+                const bulkContainer = document.createElement('div');
+                bulkContainer.style = "background: #fff3cd; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ffeeba;";
+                bulkContainer.innerHTML = `<strong>Tổng hợp link trong thư mục này:</strong><br>
+                                           <textarea id="bulk-textarea" style="width:100%; height:80px; margin-top:5px; font-family:monospace; font-size:12px;"></textarea>
+                                           <button class="btn-copy" style="margin: 5px 0 0 0" onclick="copyToClipboard('bulk-textarea')">Copy tất cả (dấu phẩy)</button>`;
+                listElement.appendChild(bulkContainer);
+
+                data.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item';
+
+                    if (item.type === 'dir') {
+                        itemDiv.innerHTML = `<span class="item-icon folder">📁</span><div class="item-info"><span class="item-name" onclick="loadFolder('${item.path}')">${item.name}/</span></div>`;
+                    } else if (item.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+                        // Link format bạn yêu cầu: User/Repo@Branch/Path
+                        const cdnLink = `${user}/${repo}@main/${item.path}`;
+                        allLinks.push(cdnLink);
+
+                        itemDiv.innerHTML = `
+                            <span class="item-icon">🖼️</span>
+                            <div class="item-info">
+                                <span class="item-name" onclick="window.open('https://cdn.jsdelivr.net/gh/${cdnLink}', '_blank')">${item.name}</span>
+                                <input type="text" class="cdn-link" value="${cdnLink}" id="input-${item.sha}" readonly>
+                            </div>
+                            <button class="btn-copy" onclick="copyToClipboard('input-${item.sha}')">Copy</button>
+                        `;
+                    }
+                    listElement.appendChild(itemDiv);
+                });
+
+                // Đổ dữ liệu vào ô tổng hợp
+                document.getElementById('bulk-textarea').value = allLinks.join(',');
+
+            } catch (error) {
+                listElement.innerHTML = "<span style='color:red'>Lỗi khi tải dữ liệu.</span>";
+            }
+        }
+
+        function copyToClipboard(id) {
+            const copyText = document.getElementById(id);
+            copyText.select();
+            document.execCommand("copy");
+            // Thông báo nhẹ nhàng
+            const btn = event.target;
+            const oldText = btn.innerText;
+            btn.innerText = "Đã copy!";
+            setTimeout(() => btn.innerText = oldText, 2000);
+        }
+
+        loadFolder('');
+    </script>
+
+</body>
+</html>
